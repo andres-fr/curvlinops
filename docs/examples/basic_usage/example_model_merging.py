@@ -205,7 +205,7 @@ average_params = sum(thetas) / len(thetas)
 #
 # We initialize two neural networks with those parameters
 
-fisher_model = make_architecture()
+fisher_model = make_architecture().to(DEVICE)
 
 params = [p for p in fisher_model.parameters() if p.requires_grad]
 theta_fisher = vector_to_parameter_list(
@@ -215,7 +215,7 @@ for theta, param in zip(theta_fisher, params):
     param.data = theta.to(param.device).to(param.dtype).data
 
 # same for the average-weighted parameters
-average_model = make_architecture()
+average_model = make_architecture().to(DEVICE)
 
 params = [p for p in average_model.parameters() if p.requires_grad]
 theta_average = vector_to_parameter_list(torch.from_numpy(average_params), params)
