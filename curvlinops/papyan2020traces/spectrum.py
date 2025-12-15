@@ -89,6 +89,18 @@ def lanczos_approximate_spectrum_from_iter(
     kappa: float,
     margin: float,
 ) -> Tuple[Tensor, Tensor]:
+    """Compute a spectrum approximation from a Lanczos iteration.
+
+    Args:
+        lanczos_iter: Pair ``(evals, evecs)`` from a Lanczos run.
+        boundaries: Approximate minimum and maximum eigenvalues of the operator.
+        num_points: Number of grid points.
+        kappa: Width parameter for the Gaussian bumps.
+        margin: Relative margin added around the spectral boundary.
+
+    Returns:
+        Grid points and estimated spectral density.
+    """
     eval_min, eval_max = boundaries
     _width = eval_max - eval_min
     _padding = margin * _width
@@ -283,6 +295,19 @@ def lanczos_approximate_log_spectrum_from_iter(
     margin: float,
     epsilon: float,
 ) -> Tuple[Tensor, Tensor]:
+    """Compute a log-spectrum approximation from a Lanczos iteration.
+
+    Args:
+        lanczos_iter: Pair ``(evals, evecs)`` from a Lanczos run.
+        boundaries: Approximate spectral boundary of ``|A|``.
+        num_points: Number of grid points.
+        kappa: Width parameter for the Gaussian bumps.
+        margin: Relative margin added around the boundary.
+        epsilon: Positive shift for numerical stability.
+
+    Returns:
+        Grid points and estimated spectral density of ``log(|A| + εI)``.
+    """
     log_eval_min, log_eval_max = (log(boundary + epsilon) for boundary in boundaries)
     _width = log_eval_max - log_eval_min
     _padding = margin * _width

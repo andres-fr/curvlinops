@@ -9,8 +9,9 @@ from their original papers, using toy matrices with a power law spectrum.
 Here are the imports:
 """
 
+from itertools import count
 from os import getenv
-from typing import Dict
+from typing import Dict, Union
 
 import matplotlib.pyplot as plt
 from torch import (
@@ -29,8 +30,9 @@ from torch import (
 from torch.linalg import qr
 from tueplots import bundles
 
-from curvlinops import hutchinson_diag, hutchinson_trace, hutchpp_trace, xdiag, xtrace
 from curvlinops.examples import TensorLinearOperator
+from skerch.algorithms import hutch, xhutchpp
+
 
 # LaTeX is not available on RTD and we also want to analyze smaller matrices
 # to reduce build time
