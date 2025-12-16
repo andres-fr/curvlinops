@@ -100,9 +100,10 @@ assert allclose_report(H_mat, H_mat_from_linop)
 #
 # Last, here's a visualization of the Hessian.
 
+
 plt.figure()
 plt.title("Hessian")
-plt.imshow(H_mat)
+plt.imshow(H_mat.cpu())
 plt.colorbar()
 
 # %%
@@ -221,7 +222,7 @@ assert allclose_report(GGN_mat, GGN_mat_from_linop)
 
 plt.figure()
 plt.title("GGN")
-plt.imshow(GGN_mat)
+plt.imshow(GGN_mat.cpu())
 plt.colorbar()
 
 # %%
@@ -235,6 +236,6 @@ max_value = max(GGN_mat.max(), H_mat.max())
 
 fig, ax = plt.subplots(ncols=2)
 ax[0].set_title("Hessian")
-ax[0].imshow(H_mat, vmin=min_value, vmax=max_value)
+ax[0].imshow(H_mat.cpu(), vmin=min_value, vmax=max_value)
 ax[1].set_title("GGN")
-ax[1].imshow(GGN_mat, vmin=min_value, vmax=max_value)
+ax[1].imshow(GGN_mat.cpu(), vmin=min_value, vmax=max_value)

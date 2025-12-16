@@ -89,7 +89,7 @@ ON_RTD = environ.get("READTHEDOCS", "False") == "True"
 USETEX = not ON_RTD
 
 # Devices to run the benchmark on
-DEVICE_STRS = ["cpu"] if ON_RTD else ["cuda"]
+DEVICE_STRS = ["cuda"] if cuda.is_available() else ["cpu"]
 
 # Whether to skip runs for which measurements already exists
 SKIP_EXISTING = True
@@ -123,7 +123,7 @@ def setup_synthetic_mnist_cnn(
     """Set up a synthetic MNIST CNN problem for the benchmark.
 
     Args:
-        batch_size: The batch size to use. Default is ``64``.
+        batch_size: The batch size to use. Default is ``512``.
 
     Returns:
         The neural net, loss function, and data.
@@ -640,7 +640,8 @@ if __name__ == "__main__":
     ):
         cmd = [
             "python",
-            "memory_benchmark.py",
+            path.join(path.dirname(__file__), "memory_benchmark.py"),
+            # "memory_benchmark.py",
             f"--linop={linop_str}",
             f"--problem={problem_str}",
             f"--device={device_str}",

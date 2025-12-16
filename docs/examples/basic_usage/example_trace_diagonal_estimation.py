@@ -49,6 +49,7 @@ NUM_REPEATS = 50 if RTD else 200
 
 manual_seed(0)  # make deterministic
 
+
 # %%
 #
 # Setup
