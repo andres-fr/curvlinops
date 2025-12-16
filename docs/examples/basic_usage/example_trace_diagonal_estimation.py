@@ -14,6 +14,7 @@ from os import getenv
 from typing import Dict, Union
 
 import matplotlib.pyplot as plt
+import torch
 from torch import (
     Tensor,
     arange,
@@ -37,6 +38,8 @@ from skerch.algorithms import hutch, xhutchpp
 # LaTeX is not available on RTD and we also want to analyze smaller matrices
 # to reduce build time
 RTD = getenv("READTHEDOCS")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DTYPE = torch.float64
 
 PLOT_CONFIG = bundles.icml2024(
     column="full" if RTD else "half", usetex=not RTD, nrows=2
@@ -46,9 +49,7 @@ PLOT_CONFIG = bundles.icml2024(
 DIM = 200 if RTD else 1000
 # Number of repeats for the Hutchinson estimator to compute error bars
 NUM_REPEATS = 50 if RTD else 200
-
-manual_seed(0)  # make deterministic
-
+SEEDS = [12345 + i for i in range(NUM_REPEATS)]
 
 # %%
 #
@@ -63,7 +64,9 @@ manual_seed(0)  # make deterministic
 # Here is a function that creates such a matrix:
 
 
-def create_power_law_matrix(dim: int = DIM, c: float = 1.0) -> Tensor:
+def create_power_law_matrix(
+    dim: int = DIM, c: float = 1.0, dtype: torch.dtype = float64
+) -> Tensor:
     """Draw a matrix with a power law spectrum.
 
     Eigenvalues λ_i are given by λ_i = i^(-c), where i is the index of the eigenvalue
@@ -78,13 +81,13 @@ def create_power_law_matrix(dim: int = DIM, c: float = 1.0) -> Tensor:
         A sample matrix with a power law spectrum.
     """
     # Create the diagonal matrix Λ with Λii = i^(-c)
-    L = (arange(1, dim + 1, dtype=float64) ** (-c)).diag()
+    L = arange(1, dim + 1, dtype=dtype) ** (-c)
 
     # Generate a random Gaussian matrix and orthogonalize it to get Q
-    Q, _ = qr(randn(dim, dim, dtype=float64))
+    Q, _ = qr(randn(dim, dim, dtype=dtype))
 
-    # Construct the matrix A = Q^T Λ Q
-    return Q.T @ L @ Q
+    # Construct the matrix A = Q^H Λ Q
+    return (Q.H * L) @ Q
 
 
 # %%
@@ -97,7 +100,7 @@ def create_power_law_matrix(dim: int = DIM, c: float = 1.0) -> Tensor:
 #
 # To get started, let's create a power law matrix and turn it into a linear operator:
 
-Y_mat = create_power_law_matrix()
+Y_mat = create_power_law_matrix(dtype=DTYPE).to(DEVICE)
 Y = TensorLinearOperator(Y_mat)
 
 # %%
@@ -121,7 +124,13 @@ print(f"Exact trace: {exact_trace:.3f}")
 num_matvecs = 5
 
 # Generate estimates, repeat process multiple times so we have error bars.
-estimates = stack([hutchinson_trace(Y, num_matvecs) for _ in range(NUM_REPEATS)])
+aaa = hutch(Y, Y.device, Y.dtype, num_matvecs, SEEDS[0], return_diag=False)
+estimates = stack(
+    [
+        hutch(Y, Y.device, Y.dtype, num_matvecs, SEEDS[i], return_diag=False)["tr"]
+        for i in range(NUM_REPEATS)
+    ]
+)
 
 # Calculate the median and quartiles (error bars) of the estimates
 med = median(estimates)
@@ -139,6 +148,10 @@ print(f"\t- Third quartile (75%): {quartile3:.3f}")
 is_within_quartiles = quartile1 <= exact_trace <= quartile3
 print(f"True value within interquartile range? {is_within_quartiles}")
 assert is_within_quartiles
+
+
+breakpoint()
+
 
 # %%
 #
