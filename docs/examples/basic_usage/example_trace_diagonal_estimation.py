@@ -22,7 +22,6 @@ from torch import (
     float64,
     int32,
     linspace,
-    manual_seed,
     median,
     quantile,
     randn,
@@ -32,7 +31,8 @@ from torch.linalg import qr
 from tueplots import bundles
 
 from curvlinops.examples import TensorLinearOperator
-from skerch.algorithms import hutch, xhutchpp
+from skerch.algorithms import hutch as _hutch
+from skerch.algorithms import xhutchpp as _xhutchpp
 
 
 # LaTeX is not available on RTD and we also want to analyze smaller matrices
@@ -90,6 +90,28 @@ def create_power_law_matrix(
     return (Q.H * L) @ Q
 
 
+def hutch(lop, lop_device, lop_dtype, num_meas, seed):
+    """Girard-Hutchinson estimator."""
+    return _hutch(lop, lop_device, lop_dtype, num_meas, seed)
+
+
+def hutchpp(lop, lop_device, lop_dtype, num_meas, seed):
+    """Girard-Hutchinson with rank-deflation."""
+    assert num_meas % 3 == 0, "num_meas must be a multiple of 3"
+    # from xhutchpp we just use the deflation matrix Q here (num_meas // 3)
+    Q = _xhutchpp(lop, lop_device, lop_dtype, num_meas // 3, 0, seed - num_meas)["Q"]
+    result = _hutch(lop, lop_device, lop_dtype, num_meas // 3, seed, defl_Q=Q)
+    result["diag"] += (Q.T * (Q.H @ lop)).sum(0)  # here another num_meas // 3
+    result["tr"] = result["diag"].sum()
+    return result
+
+
+def xdiagtrace(lop, lop_device, lop_dtype, num_meas, seed):
+    """XDiag/XTrace estimator."""
+    assert num_meas % 2 == 0, "num_meas must be even"
+    return _xhutchpp(lop, lop_device, lop_dtype, num_meas // 2, 0, seed)
+
+
 # %%
 #
 # Trace estimation
@@ -124,10 +146,9 @@ print(f"Exact trace: {exact_trace:.3f}")
 num_matvecs = 5
 
 # Generate estimates, repeat process multiple times so we have error bars.
-aaa = hutch(Y, Y.device, Y.dtype, num_matvecs, SEEDS[0], return_diag=False)
 estimates = stack(
     [
-        hutch(Y, Y.device, Y.dtype, num_matvecs, SEEDS[i], return_diag=False)["tr"]
+        hutch(Y, Y.device, Y.dtype, num_matvecs, SEEDS[i])["tr"]
         for i in range(NUM_REPEATS)
     ]
 )
@@ -148,9 +169,6 @@ print(f"\t- Third quartile (75%): {quartile3:.3f}")
 is_within_quartiles = quartile1 <= exact_trace <= quartile3
 print(f"True value within interquartile range? {is_within_quartiles}")
 assert is_within_quartiles
-
-
-breakpoint()
 
 
 # %%
@@ -177,7 +195,8 @@ breakpoint()
 #
 # We will first consider a power law matrix with high decay rate :math:`c=2.0`:
 
-Y_mat = create_power_law_matrix(c=2.0)
+Y_mat = create_power_law_matrix(c=2.0, dtype=DTYPE).to(DEVICE)
+
 
 # %%
 #
@@ -193,6 +212,12 @@ NUM_MATVECS_HUTCH = linspace(1, 100, 50, dtype=int32).unique()
 NUM_MATVECS_HUTCHPP = (NUM_MATVECS_HUTCH + (3 - NUM_MATVECS_HUTCH % 3)).unique()
 # XTrace requires matrix-vector products divisible by 2
 NUM_MATVECS_XTRACE = (NUM_MATVECS_HUTCH + (2 - NUM_MATVECS_HUTCH % 2)).unique()
+
+
+aa = hutch(Y, Y.device, Y.dtype, 300, SEEDS[0])
+bb = hutchpp(Y, Y.device, Y.dtype, 300, SEEDS[0])
+cc = xdiagtrace(Y, Y.device, Y.dtype, 300, SEEDS[0])
+breakpoint()
 
 
 def compute_relative_trace_errors(Y_mat: Tensor) -> Dict[str, Dict[str, Tensor]]:
