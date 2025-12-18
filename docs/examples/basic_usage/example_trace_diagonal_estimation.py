@@ -11,7 +11,7 @@ Here are the imports:
 
 from itertools import count
 from os import getenv
-from typing import Dict, Union
+from typing import Tuple, Dict, Union
 
 import matplotlib.pyplot as plt
 import torch
@@ -210,14 +210,106 @@ Y_mat = create_power_law_matrix(c=2.0, dtype=DTYPE).to(DEVICE)
 NUM_MATVECS_HUTCH = linspace(1, 100, 50, dtype=int32).unique()
 # Hutch++ requires matrix-vector products divisible by 3
 NUM_MATVECS_HUTCHPP = (NUM_MATVECS_HUTCH + (3 - NUM_MATVECS_HUTCH % 3)).unique()
-# XTrace requires matrix-vector products divisible by 2
-NUM_MATVECS_XTRACE = (NUM_MATVECS_HUTCH + (2 - NUM_MATVECS_HUTCH % 2)).unique()
+# XTrace/XDiag requires matrix-vector products divisible by 2
+NUM_MATVECS_X = (NUM_MATVECS_HUTCH + (2 - NUM_MATVECS_HUTCH % 2)).unique()
+
+
+def compute_relative_errors(
+    Y_mat: Tensor,
+) -> Tuple[Dict[str, Dict[str, Tensor]], Dict[str, Dict[str, Tensor]]]:
+    """Compute the relative errors for Hutchinson, Hutch++, and XTrace.
+
+    Args:
+        Y_mat: Matrix to estimate the trace of.
+
+    Returns:
+        Dictionaries with the relative trace and diagonal errors.
+    """
+    Y = TensorLinearOperator(Y_mat)
+    exact_diag = Y_mat.diag()
+    exact_trace = exact_diag.sum()
+    #
+    results = {}
+    for method, num_matvecs_method in zip(
+        (hutch, hutchpp, xdiagtrace),
+        (NUM_MATVECS_HUTCH, NUM_MATVECS_HUTCHPP, NUM_MATVECS_X),
+    ):
+        med = []
+        quartile1 = []
+        quartile3 = []
+
+        for n in num_matvecs_method:
+            """
+            TODO: dispatch this cleanly
+            """
+            breakpoint()
+            for seed in SEEDS:
+                method(Y, Y.device, Y.dtype, int(n), seed)
+            estimates = [method(Y, Y.device, Y.dtype, int(n), seed) for seed in SEEDS]
+
+            print("====")
+            breakpoint()
+            errors = (estimates - exact_trace).abs() / abs(exact_trace)
+            med.append(median(errors))
+            quartile1.append(quantile(errors, 0.25))
+            quartile3.append(quantile(errors, 0.75))
+
+        results[name] = {
+            "med": as_tensor(med),
+            "quartile1": as_tensor(quartile1),
+            "quartile3": as_tensor(quartile3),
+            "num_matvecs": num_matvecs_method,
+        }
 
 
 aa = hutch(Y, Y.device, Y.dtype, 300, SEEDS[0])
 bb = hutchpp(Y, Y.device, Y.dtype, 300, SEEDS[0])
 cc = xdiagtrace(Y, Y.device, Y.dtype, 300, SEEDS[0])
+
+compute_relative_errors(Y_mat)
 breakpoint()
+
+
+def compute_relative_diagonal_errors(Y_mat: Tensor) -> Dict[str, Dict[str, Tensor]]:
+    """Compute the relative diagonal errors for Hutchinson's method and XDiag.
+
+    Args:
+        Y_mat: Matrix to estimate the diagonal of.
+
+    Returns:
+        Dictionary with the relative diagonal errors.
+    """
+    Y = TensorLinearOperator(Y_mat)
+    exact_diag = Y_mat.diag()
+
+    # compute median and quartiles for Hutchinson's method
+    estimators = {
+        "Hutchinson": hutchinson_diag,
+        "XDiag": xdiag,
+    }
+    num_matvecs = [NUM_MATVECS_HUTCH, NUM_MATVECS_XDIAG]
+
+    results = {}
+    for (name, method), num_matvecs_method in zip(estimators.items(), num_matvecs):
+        med = []
+        quartile1 = []
+        quartile3 = []
+
+        for n in num_matvecs_method:
+            estimates = [method(Y, n) for _ in range(NUM_REPEATS)]
+            errors = stack([relative_l_inf_error(e, exact_diag) for e in estimates])
+            med.append(median(errors))
+            quartile1.append(quantile(errors, 0.25))
+            quartile3.append(quantile(errors, 0.75))
+
+        results[name] = {
+            "med": as_tensor(med),
+            "quartile1": as_tensor(quartile1),
+            "quartile3": as_tensor(quartile3),
+            "num_matvecs": num_matvecs_method,
+        }
+
+    return results
 
 
 def compute_relative_trace_errors(Y_mat: Tensor) -> Dict[str, Dict[str, Tensor]]:
