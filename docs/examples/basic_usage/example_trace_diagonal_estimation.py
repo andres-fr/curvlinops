@@ -47,6 +47,7 @@ PLOT_CONFIG = bundles.icml2024(
 
 # Dimension of the matrices whose traces we will estimate
 DIM = 200 if RTD else 1000
+NUM_PLOT_POINTS = 30
 # Number of repeats for the Hutchinson estimator to compute error bars
 NUM_REPEATS = 50 if RTD else 200
 SEEDS = [12345 + i for i in range(NUM_REPEATS)]
@@ -88,6 +89,27 @@ def create_power_law_matrix(
 
     # Construct the matrix A = Q^H Λ Q
     return (Q.H * L) @ Q
+
+
+# %%
+#
+# The diagonal is a vector, which makes comparing the estimates by printing their
+# entries tedious. Therefore, we will use the relative :math:`L_\infty` error, which is
+# the maximum entry of the absolute difference between the estimated and exact diagonal
+# entries, divided by the maximum absolute entry of the exact diagonal.
+
+
+def relative_l_inf_error(est: Tensor, exact: Tensor) -> Tensor:
+    """Compute the relative L-infinity error between two vectors.
+
+    Args:
+        est: Estimated vector.
+        exact: Exact vector.
+
+    Returns:
+        Relative L-infinity error.
+    """
+    return (est - exact).abs().max() / exact.abs().max()
 
 
 def hutch(lop, lop_device, lop_dtype, num_meas, seed):
@@ -147,10 +169,7 @@ num_matvecs = 5
 
 # Generate estimates, repeat process multiple times so we have error bars.
 estimates = stack(
-    [
-        hutch(Y, Y.device, Y.dtype, num_matvecs, SEEDS[i])["tr"]
-        for i in range(NUM_REPEATS)
-    ]
+    [hutch(Y, Y.device, Y.dtype, num_matvecs, seed)["tr"] for seed in SEEDS]
 )
 
 # Calculate the median and quartiles (error bars) of the estimates
@@ -207,7 +226,7 @@ Y_mat = create_power_law_matrix(c=2.0, dtype=DTYPE).to(DEVICE)
 #
 # Here is a function that computes these relative trace errors for a given matrix:
 
-NUM_MATVECS_HUTCH = linspace(1, 100, 50, dtype=int32).unique()
+NUM_MATVECS_HUTCH = linspace(1, 100, NUM_PLOT_POINTS, dtype=int32).unique()
 # Hutch++ requires matrix-vector products divisible by 3
 NUM_MATVECS_HUTCHPP = (NUM_MATVECS_HUTCH + (3 - NUM_MATVECS_HUTCH % 3)).unique()
 # XTrace/XDiag requires matrix-vector products divisible by 2
@@ -229,141 +248,52 @@ def compute_relative_errors(
     exact_diag = Y_mat.diag()
     exact_trace = exact_diag.sum()
     #
-    results = {}
-    for method, num_matvecs_method in zip(
+    tr_results, diag_results = {}, {}
+    for name, method, num_matvecs_method in zip(
+        ("Hutchinson", "Hutch++", "Exchanged"),
         (hutch, hutchpp, xdiagtrace),
         (NUM_MATVECS_HUTCH, NUM_MATVECS_HUTCHPP, NUM_MATVECS_X),
     ):
-        med = []
-        quartile1 = []
-        quartile3 = []
-
+        tr_results[name] = {
+            "med": [],
+            "quartile1": [],
+            "quartile3": [],
+            "num_matvecs": [],
+        }
+        diag_results[name] = {
+            "med": [],
+            "quartile1": [],
+            "quartile3": [],
+            "num_matvecs": [],
+        }
         for n in num_matvecs_method:
-            """
-            TODO: dispatch this cleanly
-            """
-            breakpoint()
+            tr_errors, diag_errors = [], []
             for seed in SEEDS:
-                method(Y, Y.device, Y.dtype, int(n), seed)
-            estimates = [method(Y, Y.device, Y.dtype, int(n), seed) for seed in SEEDS]
-
-            print("====")
-            breakpoint()
-            errors = (estimates - exact_trace).abs() / abs(exact_trace)
-            med.append(median(errors))
-            quartile1.append(quantile(errors, 0.25))
-            quartile3.append(quantile(errors, 0.75))
-
-        results[name] = {
-            "med": as_tensor(med),
-            "quartile1": as_tensor(quartile1),
-            "quartile3": as_tensor(quartile3),
-            "num_matvecs": num_matvecs_method,
-        }
-
-
-aa = hutch(Y, Y.device, Y.dtype, 300, SEEDS[0])
-bb = hutchpp(Y, Y.device, Y.dtype, 300, SEEDS[0])
-cc = xdiagtrace(Y, Y.device, Y.dtype, 300, SEEDS[0])
-
-compute_relative_errors(Y_mat)
-breakpoint()
-
-
-def compute_relative_diagonal_errors(Y_mat: Tensor) -> Dict[str, Dict[str, Tensor]]:
-    """Compute the relative diagonal errors for Hutchinson's method and XDiag.
-
-    Args:
-        Y_mat: Matrix to estimate the diagonal of.
-
-    Returns:
-        Dictionary with the relative diagonal errors.
-    """
-    Y = TensorLinearOperator(Y_mat)
-    exact_diag = Y_mat.diag()
-
-    # compute median and quartiles for Hutchinson's method
-    estimators = {
-        "Hutchinson": hutchinson_diag,
-        "XDiag": xdiag,
-    }
-    num_matvecs = [NUM_MATVECS_HUTCH, NUM_MATVECS_XDIAG]
-
-    results = {}
-    for (name, method), num_matvecs_method in zip(estimators.items(), num_matvecs):
-        med = []
-        quartile1 = []
-        quartile3 = []
-
-        for n in num_matvecs_method:
-            estimates = [method(Y, n) for _ in range(NUM_REPEATS)]
-            errors = stack([relative_l_inf_error(e, exact_diag) for e in estimates])
-            med.append(median(errors))
-            quartile1.append(quantile(errors, 0.25))
-            quartile3.append(quantile(errors, 0.75))
-
-        results[name] = {
-            "med": as_tensor(med),
-            "quartile1": as_tensor(quartile1),
-            "quartile3": as_tensor(quartile3),
-            "num_matvecs": num_matvecs_method,
-        }
-
-    return results
-
-
-def compute_relative_trace_errors(Y_mat: Tensor) -> Dict[str, Dict[str, Tensor]]:
-    """Compute the relative trace errors for Hutchinson's method, Hutch++, and XTrace.
-
-    Args:
-        Y_mat: Matrix to estimate the trace of.
-
-    Returns:
-        Dictionary with the relative trace errors.
-    """
-    Y = TensorLinearOperator(Y_mat)
-    exact_trace = Y_mat.trace()
-
-    # compute median and quartiles for Hutchinson's method
-    estimators = {
-        "Hutchinson": hutchinson_trace,
-        "Hutch++": hutchpp_trace,
-        "XTrace": xtrace,
-    }
-    num_matvecs = [NUM_MATVECS_HUTCH, NUM_MATVECS_HUTCHPP, NUM_MATVECS_XTRACE]
-
-    results = {}
-    for (name, method), num_matvecs_method in zip(estimators.items(), num_matvecs):
-        med = []
-        quartile1 = []
-        quartile3 = []
-
-        for n in num_matvecs_method:
-            estimates = stack([method(Y, n) for _ in range(NUM_REPEATS)])
-            errors = (estimates - exact_trace).abs() / abs(exact_trace)
-            med.append(median(errors))
-            quartile1.append(quantile(errors, 0.25))
-            quartile3.append(quantile(errors, 0.75))
-
-        results[name] = {
-            "med": as_tensor(med),
-            "quartile1": as_tensor(quartile1),
-            "quartile3": as_tensor(quartile3),
-            "num_matvecs": num_matvecs_method,
-        }
-
-    return results
+                est = method(Y, Y.device, Y.dtype, int(n), seed)
+                tr_errors.append((est["tr"] - exact_trace).abs() / abs(exact_trace))
+                diag_errors.append(relative_l_inf_error(est["diag"], exact_diag))
+            tr_errors, diag_errors = as_tensor(tr_errors), as_tensor(diag_errors)
+            tr_results[name]["med"].append(tr_errors.median())
+            tr_results[name]["quartile1"].append(tr_errors.quantile(0.25))
+            tr_results[name]["quartile3"].append(tr_errors.quantile(0.75))
+            tr_results[name]["num_matvecs"].append(n)
+            diag_results[name]["med"].append(diag_errors.median())
+            diag_results[name]["quartile1"].append(diag_errors.quantile(0.25))
+            diag_results[name]["quartile3"].append(diag_errors.quantile(0.75))
+            diag_results[name]["num_matvecs"].append(n)
+    #
+    return tr_results, diag_results
 
 
 # %%
 #
 # Let's compute the relative trace errors and look at them:
 
-results = compute_relative_trace_errors(Y_mat)
+tr_results, diag_results = compute_relative_errors(Y_mat)
 
 print("Relative errors:")
 
-for method, data in results.items():
+for method, data in tr_results.items():
     print(f"-\t{method}:")
 
     num_matvecs = data["num_matvecs"]
@@ -400,6 +330,7 @@ def plot_estimation_results(
     ax.set_yscale("log")
 
     for name, data in results.items():
+        print("\n\n\n plotting:", name, "from", results.keys())
         num_matvecs = data["num_matvecs"]
         med = data["med"]
         quartile1 = data["quartile1"]
@@ -419,17 +350,18 @@ def plot_estimation_results(
 # decay.
 
 # Compute results for matrices with different spectral decay rates
-Y_mat_fast = create_power_law_matrix()  # Fast spectral decay with c=2
-results_fast = compute_relative_trace_errors(Y_mat_fast)
+Y_mat_fast = create_power_law_matrix(c=2)  # Fast spectral decay
+tr_results_fast, diag_results_fast = compute_relative_errors(Y_mat_fast)
 
-Y_mat_slow = create_power_law_matrix(c=0.5)  # Slow spectral decay with c=0.5
-results_slow = compute_relative_trace_errors(Y_mat_slow)
+Y_mat_slow = create_power_law_matrix(c=0.5)  # Slow spectral decay
+tr_results_slow, diag_results_slow = compute_relative_errors(Y_mat_slow)
+
 
 # Plot the results for both fast and slow spectral decay
 with plt.rc_context(PLOT_CONFIG):
     fig, axes = plt.subplots(nrows=2, sharex=True)
-    plot_estimation_results(results_fast, axes[0])
-    plot_estimation_results(results_slow, axes[1])
+    plot_estimation_results(tr_results_fast, axes[0])
+    plot_estimation_results(tr_results_slow, axes[1])
     axes[0].set_title("Fast spectral decay ($c=2$)")
     axes[1].set_title("Slow spectral decay ($c=0.5$)")
 
@@ -437,7 +369,8 @@ with plt.rc_context(PLOT_CONFIG):
     axes[0].set_xlabel(None)
     axes[1].legend().remove()
 
-    plt.savefig("trace_estimation.pdf", bbox_inches="tight")
+    plt.savefig("./trace_estimation.pdf", bbox_inches="tight")
+
 
 # %%
 #
@@ -463,27 +396,6 @@ exact_diag = Y_mat.diag()
 
 # %%
 #
-# The diagonal is a vector, which makes comparing the estimates by printing their
-# entries tedious. Therefore, we will use the relative :math:`L_\infty` error, which is
-# the maximum entry of the absolute difference between the estimated and exact diagonal
-# entries, divided by the maximum absolute entry of the exact diagonal.
-
-
-def relative_l_inf_error(est: Tensor, exact: Tensor) -> Tensor:
-    """Compute the relative L-infinity error between two vectors.
-
-    Args:
-        est: Estimated vector.
-        exact: Exact vector.
-
-    Returns:
-        Relative L-infinity error.
-    """
-    return (est - exact).abs().max() / exact.abs().max()
-
-
-# %%
-#
 # The simplest method for diagonal estimation is Hutchinson's method.
 #
 # The idea is to estimate the diagonal from matrix-vector products with random vectors.
@@ -496,7 +408,7 @@ def relative_l_inf_error(est: Tensor, exact: Tensor) -> Tensor:
 num_matvecs = 5
 
 # Generate estimates, repeat process multiple times so we have error bars.
-estimates = [hutchinson_diag(Y, num_matvecs) for _ in range(NUM_REPEATS)]
+estimates = [hutch(Y, Y.device, Y.dtype, num_matvecs, seed)["diag"] for seed in SEEDS]
 errors = stack([relative_l_inf_error(e, exact_diag) for e in estimates])
 
 # Calculate the median and quartiles (error bars) of the estimates
@@ -504,11 +416,12 @@ med = median(errors)
 quartile1 = quantile(errors, 0.25)
 quartile3 = quantile(errors, 0.75)
 
-# Print the exact trace and the statistical measures of the estimates
+# Print error stats
 print("Relative errors:")
 print(f"\t- Median: {med:.3f}")
 print(f"\t- First quartile (25%): {quartile1:.3f}")
 print(f"\t- Third quartile (75%): {quartile3:.3f}")
+
 
 # %%
 #
@@ -516,55 +429,9 @@ print(f"\t- Third quartile (75%): {quartile3:.3f}")
 # ^^^^^^^^^^
 #
 # We will compare Hutchinson's method for diagonal estimation with the XDiag method
-# on a matrices with fast and slow spectral decay.
+# on matrices with fast and slow spectral decay.
 #
 # Here is a function that computes these relative diagonal errors for a given matrix:
-
-NUM_MATVECS_HUTCH = linspace(1, 100, 50, dtype=int32).unique()
-# XTrace requires matrix-vector products divisible by 2
-NUM_MATVECS_XDIAG = (NUM_MATVECS_HUTCH + (2 - NUM_MATVECS_HUTCH % 2)).unique()
-
-
-def compute_relative_diagonal_errors(Y_mat: Tensor) -> Dict[str, Dict[str, Tensor]]:
-    """Compute the relative diagonal errors for Hutchinson's method and XDiag.
-
-    Args:
-        Y_mat: Matrix to estimate the diagonal of.
-
-    Returns:
-        Dictionary with the relative diagonal errors.
-    """
-    Y = TensorLinearOperator(Y_mat)
-    exact_diag = Y_mat.diag()
-
-    # compute median and quartiles for Hutchinson's method
-    estimators = {
-        "Hutchinson": hutchinson_diag,
-        "XDiag": xdiag,
-    }
-    num_matvecs = [NUM_MATVECS_HUTCH, NUM_MATVECS_XDIAG]
-
-    results = {}
-    for (name, method), num_matvecs_method in zip(estimators.items(), num_matvecs):
-        med = []
-        quartile1 = []
-        quartile3 = []
-
-        for n in num_matvecs_method:
-            estimates = [method(Y, n) for _ in range(NUM_REPEATS)]
-            errors = stack([relative_l_inf_error(e, exact_diag) for e in estimates])
-            med.append(median(errors))
-            quartile1.append(quantile(errors, 0.25))
-            quartile3.append(quantile(errors, 0.75))
-
-        results[name] = {
-            "med": as_tensor(med),
-            "quartile1": as_tensor(quartile1),
-            "quartile3": as_tensor(quartile3),
-            "num_matvecs": num_matvecs_method,
-        }
-
-    return results
 
 
 # %%
@@ -572,18 +439,12 @@ def compute_relative_diagonal_errors(Y_mat: Tensor) -> Dict[str, Dict[str, Tenso
 # For plotting, we can re-purpose the function we used earlier to visualize the trace
 # estimation results:
 
-# Compute results for matrices with different spectral decay rates
-Y_mat_fast = create_power_law_matrix()  # Fast spectral decay with c=2
-results_fast = compute_relative_diagonal_errors(Y_mat_fast)
-
-Y_mat_slow = create_power_law_matrix(c=0.5)  # Slow spectral decay with c=0.5
-results_slow = compute_relative_diagonal_errors(Y_mat_slow)
 
 # Plot the results for both fast and slow spectral decay
 with plt.rc_context(PLOT_CONFIG):
     fig, axes = plt.subplots(nrows=2, sharex=True)
-    plot_estimation_results(results_fast, axes[0], target="diagonal")
-    plot_estimation_results(results_slow, axes[1], target="diagonal")
+    plot_estimation_results(diag_results_fast, axes[0], target="diagonal")
+    plot_estimation_results(diag_results_slow, axes[1], target="diagonal")
     axes[0].set_title("Fast spectral decay ($c=2$)")
     axes[1].set_title("Slow spectral decay ($c=0.5$)")
 
@@ -591,7 +452,8 @@ with plt.rc_context(PLOT_CONFIG):
     axes[0].set_xlabel(None)
     axes[1].legend().remove()
 
-    plt.savefig("diagonal_estimation.pdf", bbox_inches="tight")
+    plt.savefig("./diagonal_estimation.pdf", bbox_inches="tight")
+
 
 # %%
 #
@@ -599,3 +461,17 @@ with plt.rc_context(PLOT_CONFIG):
 # vanilla Hutchinson. For slow spectral decay, its benefits disappear.
 #
 # That's all for now.
+
+
+"""
+TODO: log all changes for PR explanation!
+
+we need to explain that we compute trace and diagonal together: introduce the computation, metric and plotting there
+
+also, compute the fast and slow altogether when we introduce the synthmat function
+
+
+The rest is just discussion of results, first for trace and then for diag
+
+also added diag++ to plot
+"""
