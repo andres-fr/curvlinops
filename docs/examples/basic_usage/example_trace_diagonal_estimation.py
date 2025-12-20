@@ -17,12 +17,13 @@ We begin with the imports, globals and defining the estimators by wrapping the
 corresponding ``skerch`` functionality:
 """
 
-from itertools import count
 from os import getenv
-from typing import Tuple, Dict, Union
+from typing import Dict, Tuple
 
 import matplotlib.pyplot as plt
 import torch
+from skerch.algorithms import hutch as _hutch
+from skerch.algorithms import xhutchpp as _xhutchpp
 from torch import (
     Tensor,
     arange,
@@ -39,9 +40,6 @@ from torch.linalg import qr
 from tueplots import bundles
 
 from curvlinops.examples import TensorLinearOperator
-from skerch.algorithms import hutch as _hutch
-from skerch.algorithms import xhutchpp as _xhutchpp
-
 
 # LaTeX is not available on RTD and we also want to analyze smaller matrices
 # to reduce build time
@@ -256,7 +254,6 @@ def compute_relative_errors(
     Y = TensorLinearOperator(Y_mat)
     exact_diag = Y_mat.diag()
     exact_trace = exact_diag.sum()
-    #
     tr_results, diag_results = {}, {}
     for name, method, num_matvecs_method in zip(
         ("Hutchinson", "Hutch++", "Exchanged"),
@@ -290,7 +287,6 @@ def compute_relative_errors(
             diag_results[name]["quartile1"].append(diag_errors.quantile(0.25))
             diag_results[name]["quartile3"].append(diag_errors.quantile(0.75))
             diag_results[name]["num_matvecs"].append(n)
-    #
     return tr_results, diag_results
 
 
