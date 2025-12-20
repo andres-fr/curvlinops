@@ -61,7 +61,7 @@ test = [
     "coveralls",
     "pytest",
     "pytest-cov",
-    "pytest-optional-tests",
+    "pytest-optional-tests==0.1.1"
 ]
 
 # Dependencies needed for linting.
@@ -81,7 +81,7 @@ docs = [
     "sphinx-gallery",
     "sphinx-rtd-theme",
     "tueplots",
-    "skerch"
+    "skerch>=1.2.0"
 ]
 
 ###############################################################################
@@ -94,6 +94,7 @@ convention = "google"
 match = '.*\.py$'
 # subdirectories cannot be included or excluded
 # https://github.com/PyCQA/pydocstyle/issues/363
+# match_dir = '^(?!.*(?:test|\.git)).*'
 match_dir = '^(?!.*(?:test|\.git|docs)).*'
 
 [tool.ruff]

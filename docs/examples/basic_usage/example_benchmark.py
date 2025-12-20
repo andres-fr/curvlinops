@@ -585,7 +585,7 @@ if __name__ == "__main__":
 #
 # To avoid memory allocations from previous operations to impact the currently
 # benchmarked function, we run each benchmark in a separate Python session by executing
-# a Python script :download:`py <memory_benchmark.py>`. This script
+# a separate script (`memory_benchmark.py`). This script
 # re-uses most of the functionality developed in this tutorial, and the function that
 # is profiled looks very similar to the one we used for the run time benchmark.
 # Also, since memory consumption is more deterministic, we don't have to repeat each
