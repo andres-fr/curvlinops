@@ -68,6 +68,12 @@ class TensorLinearOperator(PyTorchLinearOperator):
     def __rmatmul__(self, M: object) -> object:
         """Left-multiplication: ``M @ self``.
 
+        Args:
+            M: Left matrix in ``M @ self``.
+
+        Returns:
+            Result of the matrix-matrix multiplication.
+
         See :meth:`_matmat`.
         """
         return M @ self._A

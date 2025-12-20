@@ -55,7 +55,14 @@ class MetaEnum(EnumMeta):
     """Metaclass for the Enum class for desired behavior of the `in` operator."""
 
     def __contains__(cls, item):
-        """Return whether ``item`` is a valid Enum value."""
+        """Return whether ``item`` is a valid Enum value.
+
+        Args:
+            item: Candidate value.
+
+        Returns:
+            ``True`` if ``item`` is a valid Enum value.
+        """
         try:
             cls(item)
         except ValueError:
