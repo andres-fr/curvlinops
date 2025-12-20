@@ -202,7 +202,7 @@ class NeumannInverseLinearOperator(_InversePyTorchLinearOperator):
 
     .. warning::
         The Neumann series can be non-convergent. In this case, the iterations
-        will become numerically unstable, leading to ``NaN``s.
+        will become numerically unstable, leading to ``NaN`` values.
 
     .. warning::
         The Neumann series can converge slowly.
@@ -273,7 +273,7 @@ class NeumannInverseLinearOperator(_InversePyTorchLinearOperator):
              Result of inverse matrix-vector multiplication, ``A⁻¹ @ x``.
 
         Raises:
-            ValueError: If ``NaN`` check is turned on and ``NaN``s are detected.
+            ValueError: If ``NaN`` check is turned on and ``NaN`` values are detected.
         """
         result_list, v_list = [x.clone() for x in X], [x.clone() for x in X]
 

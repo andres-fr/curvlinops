@@ -164,8 +164,8 @@ assert allclose_report(gradient, gradient_functorch)
 
 # %%
 #
-#  We can now compute the natural gradient from the :code:`functorch
-#  `quantities. This should yield approximately the same result:
+#  We can now compute the natural gradient from the :code:`functorch`
+#  quantities. This should yield approximately the same result:
 
 natural_gradient_functorch = inv_damped_GGN_mat @ gradient_functorch
 

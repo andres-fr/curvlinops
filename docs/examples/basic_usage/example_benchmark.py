@@ -580,7 +580,7 @@ if __name__ == "__main__":
 #
 # Measuring the memory consumption of some routines comes with some additional
 # challenges. We use the
-# :ref:`memory_profiler <https://github.com/pythonprofilers/memory_profiler>`
+# `memory_profiler <https://github.com/pythonprofilers/memory_profiler>`_
 # library on CPU, whereas we rely on :func:`torch.cuda.max_memory_allocated` on GPU.
 #
 # To avoid memory allocations from previous operations to impact the currently

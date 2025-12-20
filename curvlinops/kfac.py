@@ -132,17 +132,17 @@ class KFACLinearOperator(CurvatureLinearOperator):
     Kronecker-Factored Approximate Curvature (KFAC) was originally introduced for MLPs in
 
     - Martens, J., & Grosse, R. (2015). Optimizing neural networks with Kronecker-factored
-    approximate curvature. International Conference on Machine Learning (ICML),
+      approximate curvature. International Conference on Machine Learning (ICML),
 
     extended to CNNs in
 
     - Grosse, R., & Martens, J. (2016). A kronecker-factored approximate Fisher matrix for
-    convolution layers. International Conference on Machine Learning (ICML),
+      convolution layers. International Conference on Machine Learning (ICML),
 
     and generalized to all linear layers with weight sharing in
 
     - Eschenhagen, R., Immer, A., Turner, R. E., Schneider, F., Hennig, P. (2023).
-    Kronecker-Factored Approximate Curvature for Modern Neural Network Architectures (NeurIPS).
+      Kronecker-Factored Approximate Curvature for Modern Neural Network Architectures (NeurIPS).
 
     Attributes:
         _SUPPORTED_LOSSES: Tuple of supported loss functions.
